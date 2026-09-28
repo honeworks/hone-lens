@@ -1,0 +1,37 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+permissions: { contents: read }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: { python: ["3.11", "3.12", "3.13"] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { python-version: "${{ matrix.python }}", enable-cache: true }
+      # Every extra is light (typer/rich, pyarrow, openai, hone-flow) and the default suite uses them all.
+      - run: uv sync --all-extras --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pyright
+      # default suite: the gpu and ollama markers are deselected in pyproject.toml
+      - run: uv run pytest --cov --cov-fail-under=90
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv build
+      - name: Smoke test the wheel in a clean env
+        run: |
+          uv venv /tmp/smoke
+          uv pip install --python /tmp/smoke/bin/python dist/*.whl
+          /tmp/smoke/bin/python -c "import hone_lens; print(hone_lens.__version__)"
+          /tmp/smoke/bin/python tests/smoke_quickstart.py
+      - uses: actions/upload-artifact@v4
+        with: { name: dist, path: dist/ }

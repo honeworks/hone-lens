@@ -1,0 +1,122 @@
+[project]
+name = "hone-lens"
+dynamic = ["version"]
+description = "Analyze thousands of AI workflow runs to find issues, their causes and replay-tested fixes."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Bahman Shadmehr", email = "info@bshadmehr.me" }]
+keywords = [
+    "ai", "llm", "generative-ai", "honeworks", "observability", "tracing", "opentelemetry",
+    "evaluation", "error-analysis", "clustering",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.7",
+    "numpy>=1.26",  # vector math for clustering / homogeneity at 10k-output scale (design/changes/0001)
+]
+
+[project.optional-dependencies]
+cli = ["typer>=0.12", "rich>=13.7"]
+phoenix = ["pyarrow>=15"]
+openai = ["openai>=3"]
+flow = ["hone-flow>=0.1"]
+
+[dependency-groups]
+# Development tools (PEP 735): installed by `uv sync`, never published as an extra.
+dev = [
+    "pytest>=8", "pytest-cov>=5", "pytest-timeout>=2.3", "hypothesis>=6.100",
+    "ruff>=0.6", "pyright>=1.1.380",
+]
+
+[project.urls]
+Homepage = "https://github.com/honeworks/hone-lens"
+Repository = "https://github.com/honeworks/hone-lens"
+Issues = "https://github.com/honeworks/hone-lens/issues"
+Documentation = "https://github.com/honeworks/hone-lens/tree/main/docs"
+Changelog = "https://github.com/honeworks/hone-lens/blob/main/CHANGELOG.md"
+
+[project.scripts]
+hone-lens = "hone_lens.cli:main"
+
+[project.entry-points."hone.text_clients"]
+openai = "hone_lens.adapters.openai:OpenAITextClient"
+
+[project.entry-points."hone.embedders"]
+openai = "hone_lens.adapters.openai:OpenAIEmbedder"
+
+[tool.uv.sources]
+# Development only (not part of the published metadata, which keeps `hone-flow>=0.1`): take hone-flow
+# from its GitHub repository until it is on PyPI.
+hone-flow = { git = "https://github.com/honeworks/hone-flow", branch = "main" }
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/hone_lens/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hone_lens"]
+
+[tool.hatch.build.targets.sdist]
+# tests/ run the README, docs/ and examples/, and check that README links point at files in the repository
+include = [
+    "src/", "tests/", "docs/", "examples/", "design/", "scripts/", "README.md", "LICENSE", "CHANGELOG.md",
+    "CONTRIBUTING.md", "AGENTS.md", "pyproject.toml",
+]
+exclude = [".hone/"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+src = ["src", "tests"]
+extend-exclude = ["design"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PT", "N", "S", "C4", "DTZ", "PL", "C90"]
+ignore = ["PLR0913", "PLR0917", "PLR2004", "S311"]  # S311: seeded random is for determinism, never crypto
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S603", "S608", "E402", "PLR0915", "N802", "PT018", "E501", "RUF043"]
+"src/hone_lens/testing/contracts.py" = ["S101", "PT018"]  # contract checkers assert by design (design/current.md §6)
+"src/hone_lens/errors.py" = ["N818"]  # BudgetExceeded is the public name
+"examples/**" = ["S101", "PT018"]  # examples check their claims with assert
+
+[tool.pyright]
+include = ["src", "tests"]
+strict = ["src"]
+pythonVersion = "3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers -m 'not gpu and not ollama'"
+timeout = 120
+markers = [
+    "e2e: acceptance-case tests (run by default)",
+    "gpu: needs the shared GPU; run via scripts/gpu-lock.sh",
+    "ollama: needs a running Ollama",
+    "slow: slower than 5 s",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src/hone_lens"]
+
+[tool.coverage.report]
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@overload", "\\.\\.\\."]
