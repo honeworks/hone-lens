@@ -4,6 +4,7 @@ Skills and agents name files and design sections; when those move, the instructi
 anyone noticing. These tests fail instead.
 """
 
+import fnmatch
 import json
 import os
 import re
@@ -115,9 +116,18 @@ def test_settings_wire_the_hooks_and_deny_publishing() -> None:
     assert ("PostToolUse", "Edit|Write", "", "format-python.sh") in hooks
     assert ("PostToolUse", "Bash", "Bash(git push*)", "after-push.sh") in hooks
     assert ("PostToolUse", "Bash", "Bash(gh pr create*)", "after-push.sh") in hooks
-    deny = set(settings["permissions"]["deny"])
-    assert {"Bash(uv publish*)", "Bash(twine*)", "Bash(uv run twine*)", "Bash(uv run uv publish*)"} <= deny
-    assert not deny & set(settings["permissions"]["allow"])
+    # Deny rules win over allow rules; each way of publishing must match one.
+    deny = [rule.removeprefix("Bash(").removesuffix(")") for rule in settings["permissions"]["deny"]]
+    for command in (
+        "uv publish",
+        "twine upload dist/x.whl",
+        "uv run twine upload dist/x.whl",
+        "uv run --frozen twine upload dist/x.whl",
+        "uv run python -m twine upload dist/x.whl",
+        "uv run uv publish",
+        "uvx twine upload dist/x.whl",
+    ):
+        assert any(fnmatch.fnmatchcase(command, rule) for rule in deny), command
     assert (CLAUDE / "hooks" / "in-repo.sh").is_file()
 
 

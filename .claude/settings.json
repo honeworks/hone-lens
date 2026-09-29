@@ -20,8 +20,9 @@
     "deny": [
       "Bash(uv publish*)",
       "Bash(twine*)",
-      "Bash(uv run twine*)",
-      "Bash(uv run uv publish*)"
+      "Bash(uv run*twine*)",
+      "Bash(uv run*uv publish*)",
+      "Bash(uvx twine*)"
     ]
   },
   "enabledPlugins": {
