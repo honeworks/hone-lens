@@ -51,3 +51,6 @@ report.html
 .vscode/
 *.swp
 .DS_Store
+
+# Claude Code: machine-specific settings
+.claude/settings.local.json

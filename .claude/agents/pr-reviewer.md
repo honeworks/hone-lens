@@ -23,11 +23,10 @@ code, the rules and the design. Do not edit files.
    - records as in `design/current.md` §7; secrets never recorded;
    - determinism: explicit seeds, `hashlib` not `hash()` for ids;
    - the core imports no extra and no other honeworks package at import time;
-   - public API: typed, in `__all__`, with a docstring; a breaking change keeps the old form working with a
-     `DeprecationWarning` for a release;
+   - public API: typed, in `__all__`, with a docstring; breaking changes follow
+     `.claude/skills/deprecate-and-migrate/SKILL.md`;
    - process: a behaviour change without an accepted change record, or code that disagrees with it;
-   - docs: `design/current.md`, `docs/`, `README.md`, `examples/`, `CHANGELOG.md` and `AGENTS.md` updated
-     wherever the change touches what they describe.
+   - docs: rows of the table in `.claude/skills/sync-docs/SKILL.md` that the PR should have met and didn't.
 4. Report only problems on lines this PR changed that you confirmed by reading the code. Skip what ruff,
    pyright or the tests already catch, and matters of taste.
 

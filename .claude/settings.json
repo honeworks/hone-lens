@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(uv sync*)",
+      "Bash(uv run*)",
+      "Bash(scripts/check.sh)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git switch*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr diff*)",
+      "Bash(gh pr list*)",
+      "Bash(gh issue view*)"
+    ],
+    "deny": [
+      "Bash(uv publish*)",
+      "Bash(twine*)",
+      "Bash(uv run*twine*)",
+      "Bash(uv run*uv publish*)",
+      "Bash(uvx twine*)"
+    ]
+  },
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-main.sh" }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-python.sh" }]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "if": "Bash(git push*)", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/after-push.sh" },
+          { "type": "command", "if": "Bash(gh pr create*)", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/after-push.sh" }
+        ]
+      }
+    ]
+  }
+}
