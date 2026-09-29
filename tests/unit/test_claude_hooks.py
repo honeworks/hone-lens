@@ -143,6 +143,20 @@ def test_format_fixes_the_file_and_tells_claude_to_reread_it(inside: Path) -> No
     assert "Re-read the file" in result.stderr
 
 
+def test_format_reports_what_ruff_cannot_fix(inside: Path) -> None:
+    broken = inside / "broken.py"
+    broken.write_text("print(undefined_name)\n")
+    result = run_hook("format-python.sh", ROOT, {"file_path": str(broken)})
+    assert result.returncode == 2
+    assert "can't fix" in result.stderr
+    assert "F821" in result.stderr
+
+
+def test_format_ignores_a_missing_file(inside: Path) -> None:
+    result = run_hook("format-python.sh", ROOT, {"file_path": str(inside / "gone.py")})
+    assert (result.returncode, result.stderr) == (0, "")
+
+
 def test_format_leaves_files_outside_the_repository_alone(tmp_path: Path) -> None:
     other = make_repo(tmp_path / "other") / "script.py"  # another repository, and a scratch folder
     scratch = tmp_path / "scratch.py"

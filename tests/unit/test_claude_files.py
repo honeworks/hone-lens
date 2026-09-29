@@ -103,6 +103,24 @@ def test_named_skills_and_agents_exist(path: Path) -> None:
     assert not unknown, f"{path.relative_to(ROOT)} names skills or agents that don't exist: {unknown}"
 
 
+def test_settings_wire_the_hooks_and_deny_publishing() -> None:
+    settings = json.loads((CLAUDE / "settings.json").read_text())
+    hooks = {
+        (event, group["matcher"], hook.get("if", ""), hook["command"].rsplit("/", 1)[-1])
+        for event, groups in settings["hooks"].items()
+        for group in groups
+        for hook in group["hooks"]
+    }
+    assert ("PreToolUse", "Edit|Write|NotebookEdit", "", "guard-main.sh") in hooks
+    assert ("PostToolUse", "Edit|Write", "", "format-python.sh") in hooks
+    assert ("PostToolUse", "Bash", "Bash(git push*)", "after-push.sh") in hooks
+    assert ("PostToolUse", "Bash", "Bash(gh pr create*)", "after-push.sh") in hooks
+    deny = set(settings["permissions"]["deny"])
+    assert {"Bash(uv publish*)", "Bash(twine*)", "Bash(uv run twine*)", "Bash(uv run uv publish*)"} <= deny
+    assert not deny & set(settings["permissions"]["allow"])
+    assert (CLAUDE / "hooks" / "in-repo.sh").is_file()
+
+
 def test_settings_hooks_exist_and_are_executable() -> None:
     settings = json.loads((CLAUDE / "settings.json").read_text())
     commands = [

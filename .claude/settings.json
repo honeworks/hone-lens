@@ -19,7 +19,9 @@
     ],
     "deny": [
       "Bash(uv publish*)",
-      "Bash(twine*)"
+      "Bash(twine*)",
+      "Bash(uv run twine*)",
+      "Bash(uv run uv publish*)"
     ]
   },
   "enabledPlugins": {
