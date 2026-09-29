@@ -1,0 +1,77 @@
+name: Claude review
+# claude[bot] reviews pull requests by following .github/claude-review.md with the reviewer agents in
+# .claude/agents/. It runs on every push to a pull request from this repository, and when someone with
+# write access comments "@claude review" on any pull request (the only way for forks, which get no
+# secrets on pull_request events). Needs the Claude GitHub App on the repository and the
+# CLAUDE_CODE_OAUTH_TOKEN secret (`claude setup-token`); it uses the maintainer's Claude subscription.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+  issue_comment:
+    types: [created]
+permissions: {}
+jobs:
+  review:
+    if: >-
+      (github.event_name == 'pull_request'
+        && !github.event.pull_request.draft
+        && github.event.pull_request.head.repo.full_name == github.repository)
+      || (github.event_name == 'issue_comment'
+        && github.event.issue.pull_request
+        && startsWith(github.event.comment.body, '@claude review')
+        && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
+    runs-on: ubuntu-latest
+    # One review per pull request at a time; a newer push cancels an older review. Set on the job, not
+    # the workflow: every comment on a pull request starts this workflow, and a run whose job is
+    # skipped must not cancel a review in progress.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    env:
+      PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The pull request's own commits; the review compares them with origin/main and earlier reviews.
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || '' }}
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        id: claude
+        env:
+          # Subagents run in the foreground, so the review waits for all reviewers: a run in Actions ends
+          # when Claude ends its turn, and background reviewers would be cut off unfinished.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ env.PR }}
+            TRIGGER: ${{ github.event_name }}
+
+            Review pull request ${{ env.PR }} by following .github/claude-review.md exactly.
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Write,Agent,Task,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(git rev-parse:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api:*)"
+      # Claude's own output is hidden in the log; keep it for a week to see what a review did.
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() && steps.claude.outputs.execution_file != '' }}
+        with:
+          name: claude-review-pr${{ env.PR }}-attempt${{ github.run_attempt }}
+          path: ${{ steps.claude.outputs.execution_file }}
+          retention-days: 7
+      # A run that posted no review for the current head must not look green. Skipped when the action
+      # skipped itself (a pull request that changes this workflow), since Claude never ran then.
+      - name: Check that the review was posted
+        if: ${{ steps.claude.outputs.execution_file != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid -q .headRefOid)"
+          if ! gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/reviews" --paginate -q '.[].body' \
+              | grep -qF "hone-review sha=$head"; then
+            echo "::error::claude[bot] posted no review for $head. Its transcript is in this run's artifacts."
+            exit 1
+          fi
